@@ -57,6 +57,9 @@ inputs:
     description: 'For push events, compare against base branch instead of previous commit'
     required: false
     default: 'false'
+  force-multimodule:
+    description: 'Force treating the project as multimodule or single module'
+    required: false
 
 outputs:
   coverage-overall:

@@ -66,6 +66,8 @@ async function action() {
         const skipIfNoChanges = (0, processors_1.parseBooleans)(core.getInput('skip-if-no-changes'));
         const passEmoji = core.getInput('pass-emoji');
         const failEmoji = core.getInput('fail-emoji');
+        // Add the new force-multimodule parameter
+        const forceMultimodule = (0, processors_1.parseBooleans)(core.getInput('force-multimodule'));
         continueOnError = (0, processors_1.parseBooleans)(core.getInput('continue-on-error'));
         const debugMode = (0, processors_1.parseBooleans)(core.getInput('debug-mode'));
         const event = github.context.eventName;
@@ -131,7 +133,7 @@ async function action() {
             core.info(`changedFiles: ${(0, util_1.debug)(changedFiles)}`);
         const reportsJsonAsync = getJsonReports(reportPaths, debugMode);
         const reports = await reportsJsonAsync;
-        const project = (0, process_1.getProjectCoverage)(reports, changedFiles);
+        const project = (0, process_1.getProjectCoverage)(reports, changedFiles, forceMultimodule);
         if (debugMode)
             core.info(`project: ${(0, util_1.debug)(project)}`);
         core.setOutput('coverage-overall', project.overall ? parseFloat(project.overall.percentage.toFixed(2)) : 100);
@@ -192,7 +194,7 @@ async function getPullRequestForBranch(client, branchRef) {
         owner: github.context.repo.owner,
         repo: github.context.repo.repo,
         state: 'open',
-        head: `${github.context.repo.owner}:${branchName}`
+        head: `${github.context.repo.owner}:${branchName}`,
     });
     return response.data.length > 0 ? response.data[0] : null;
 }
@@ -210,7 +212,7 @@ async function determineBaseShaForWorkflowDispatch(client, sha) {
         const commitResponse = await client.rest.repos.getCommit({
             owner: github.context.repo.owner,
             repo: github.context.repo.repo,
-            ref: sha
+            ref: sha,
         });
         if (commitResponse.data.parents && commitResponse.data.parents.length > 0) {
             return commitResponse.data.parents[0].sha;
@@ -366,7 +368,7 @@ async function getPrNumberAssociatedWithCommit(client, commitSha) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.getProjectCoverage = getProjectCoverage;
 const util_1 = __nccwpck_require__(9685);
-function getProjectCoverage(reports, changedFiles) {
+function getProjectCoverage(reports, changedFiles, forceMultimodule) {
     const moduleCoverages = [];
     const modules = getModulesFromReports(reports);
     for (const module of modules) {
@@ -393,11 +395,12 @@ function getProjectCoverage(reports, changedFiles) {
     const changedCoverage = getCoverage(moduleCoverages);
     const projectCoverage = getOverallProjectCoverage(reports);
     const totalPercentage = getTotalPercentage(totalFiles);
-    console.log('reports: ' + reports.length);
-    console.log('reports: ' + modules.length);
+    // Determine if it's a multimodule project
+    // Use the forceMultimodule parameter if provided, otherwise use the default logic
+    const isMultiModule = forceMultimodule ?? (reports.length > 1 || modules.length > 1);
     return {
         modules: moduleCoverages,
-        isMultiModule: reports.length > 1 || modules.length > 1,
+        isMultiModule,
         overall: projectCoverage,
         changed: changedCoverage,
         'coverage-changed-files': totalPercentage ?? 100,

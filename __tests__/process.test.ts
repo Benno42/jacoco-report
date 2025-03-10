@@ -411,6 +411,73 @@ describe('process', function () {
       })
     })
   })
+  describe('getProjectCoverage', () => {
+    // Mock data for testing
+    const mockReport: Report = {
+      name: 'Test Report',
+      counter: [
+        {
+          type: 'INSTRUCTION',
+          missed: 20,
+          covered: 80
+        }
+      ],
+      package: [
+        {
+          name: 'com.example',
+          sourcefile: [
+            {
+              name: 'Test.java',
+              line: [
+                {
+                  nr: 1,
+                  mi: 0,
+                  ci: 1
+                }
+              ],
+              counter: [
+                {
+                  type: 'INSTRUCTION',
+                  missed: 20,
+                  covered: 80
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+
+    const mockChangedFile: ChangedFile = {
+      filePath: 'src/main/java/com/example/Test.java',
+      url: 'https://github.com/example/repo/blob/main/src/main/java/com/example/Test.java',
+      lines: [1]
+    }
+
+    test('should auto-detect single module when only one report is provided', () => {
+      const project = process.getProjectCoverage([mockReport], [mockChangedFile])
+      expect(project.isMultiModule).toBe(false)
+    })
+
+    test('should force multimodule to true when forceMultimodule is true', () => {
+      const project = process.getProjectCoverage([mockReport], [mockChangedFile], true)
+      expect(project.isMultiModule).toBe(true)
+    })
+
+    test('should force multimodule to false when forceMultimodule is false', () => {
+      const multipleReports = [mockReport, { ...mockReport, name: 'Second Report' }]
+      const project = process.getProjectCoverage(multipleReports, [mockChangedFile], false)
+
+      expect(project.isMultiModule).toBe(false)
+    })
+
+    test('should auto-detect multimodule when multiple reports are provided', () => {
+      const multipleReports = [mockReport, { ...mockReport, name: 'Second Report' }]
+      const project = process.getProjectCoverage(multipleReports, [mockChangedFile])
+
+      expect(project.isMultiModule).toBe(true)
+    })
+  })
 })
 
 async function getAggregateReport(): Promise<Report[]> {

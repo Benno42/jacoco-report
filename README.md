@@ -28,6 +28,8 @@ for [Creating a workflow file](https://help.github.com/en/articles/configuring-a
 - `pass-emoji` - [*optional* {default: :green_apple:}] Emoji to use for pass status shown when 'coverage >= min coverage' (should be a Github supported emoji).
 - `fail-emoji` - [*optional* {default: :x:}] Emoji to use for fail status shown when 'coverage < min coverage' (should be a Github supported emoji).
 - `continue-on-error` - [*optional* {default: true}] If true, then do not fail the action on error, but log a warning
+- `compare-with-base-branch` - [*optional* {default: false}] When set to true, the action will compare changes against the base branch of an associated PR instead of comparing with the previous commit. This ensures consistent behavior between push and workflow_dispatch events.
+- `force-multimodule` - [*optional*] Force treating the project as multimodule or single module.
 - `debug-mode` - [*optional* {default: false}] If true, run the action in debug mode and get debug logs printed in console
 
 ### Outputs

@@ -5,7 +5,8 @@ import {Counter, Group, Package, Report} from './models/jacoco-types'
 
 export function getProjectCoverage(
   reports: Report[],
-  changedFiles: ChangedFile[]
+  changedFiles: ChangedFile[],
+  forceMultimodule?: boolean
 ): Project {
   const moduleCoverages: Module[] = []
   const modules = getModulesFromReports(reports)
@@ -34,11 +35,15 @@ export function getProjectCoverage(
   const changedCoverage = getCoverage(moduleCoverages)
   const projectCoverage = getOverallProjectCoverage(reports)
   const totalPercentage = getTotalPercentage(totalFiles)
-  console.log('reports: '+  reports.length)
-  console.log('reports: '+  modules.length)
+
+  // Determine if it's a multimodule project
+  // Use the forceMultimodule parameter if provided, otherwise use the default logic
+  const isMultiModule =
+    forceMultimodule ?? (reports.length > 1 || modules.length > 1)
+
   return {
     modules: moduleCoverages,
-    isMultiModule: reports.length > 1 || modules.length > 1,
+    isMultiModule,
     overall: projectCoverage,
     changed: changedCoverage,
     'coverage-changed-files': totalPercentage ?? 100,

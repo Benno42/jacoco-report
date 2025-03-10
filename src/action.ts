@@ -44,6 +44,9 @@ export async function action(): Promise<void> {
     const passEmoji = core.getInput('pass-emoji')
     const failEmoji = core.getInput('fail-emoji')
 
+    // Add the new force-multimodule parameter
+    const forceMultimodule = parseBooleans(core.getInput('force-multimodule'))
+
     continueOnError = parseBooleans(core.getInput('continue-on-error'))
     const debugMode = parseBooleans(core.getInput('debug-mode'))
 
@@ -62,7 +65,9 @@ export async function action(): Promise<void> {
       core.setFailed(`'comment-type' ${commentType} is invalid`)
     }
 
-    const compareWithBaseBranch = parseBooleans(core.getInput('compare-with-base-branch'))
+    const compareWithBaseBranch = parseBooleans(
+      core.getInput('compare-with-base-branch')
+    )
 
     let prNumber: number | undefined =
       Number(core.getInput('pr-number')) || undefined
@@ -124,7 +129,11 @@ export async function action(): Promise<void> {
     const reportsJsonAsync = getJsonReports(reportPaths, debugMode)
     const reports = await reportsJsonAsync
 
-    const project: Project = getProjectCoverage(reports, changedFiles)
+    const project: Project = getProjectCoverage(
+      reports,
+      changedFiles,
+      forceMultimodule
+    )
     if (debugMode) core.info(`project: ${debug(project)}`)
     core.setOutput(
       'coverage-overall',
@@ -210,7 +219,7 @@ async function getPullRequestForBranch(
     owner: github.context.repo.owner,
     repo: github.context.repo.repo,
     state: 'open',
-    head: `${github.context.repo.owner}:${branchName}`
+    head: `${github.context.repo.owner}:${branchName}`,
   })
 
   return response.data.length > 0 ? response.data[0] : null
@@ -233,7 +242,7 @@ async function determineBaseShaForWorkflowDispatch(
     const commitResponse = await client.rest.repos.getCommit({
       owner: github.context.repo.owner,
       repo: github.context.repo.repo,
-      ref: sha
+      ref: sha,
     })
 
     if (commitResponse.data.parents && commitResponse.data.parents.length > 0) {
@@ -270,18 +279,21 @@ async function determineShasForPushOrDispatch(
   client: InstanceType<typeof GitHub>,
   sha: string,
   compareWithBaseBranch: boolean
-): Promise<{ base: string; head: string }> {
+): Promise<{base: string; head: string}> {
   // Default values
   let base = sha
   let head = sha
 
   if (compareWithBaseBranch) {
     // Try to find associated PR
-    const prForBranch = await getPullRequestForBranch(client, github.context.ref)
+    const prForBranch = await getPullRequestForBranch(
+      client,
+      github.context.ref
+    )
     if (prForBranch) {
       base = prForBranch.base.sha
       head = event === 'push' ? github.context.payload.after : sha
-      return { base, head }
+      return {base, head}
     }
   }
 
@@ -296,7 +308,7 @@ async function determineShasForPushOrDispatch(
     head = sha
   }
 
-  return { base, head }
+  return {base, head}
 }
 
 async function getJsonReports(
