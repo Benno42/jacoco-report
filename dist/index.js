@@ -393,6 +393,8 @@ function getProjectCoverage(reports, changedFiles) {
     const changedCoverage = getCoverage(moduleCoverages);
     const projectCoverage = getOverallProjectCoverage(reports);
     const totalPercentage = getTotalPercentage(totalFiles);
+    console.log('reports: ' + reports.length);
+    console.log('reports: ' + modules.length);
     return {
         modules: moduleCoverages,
         isMultiModule: reports.length > 1 || modules.length > 1,
