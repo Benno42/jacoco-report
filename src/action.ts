@@ -80,27 +80,16 @@ export async function action(): Promise<void> {
         prNumber = prNumber ?? github.context.payload.pull_request?.number
         break
       case 'push':
-        if (compareWithBaseBranch) {
-          // Need to determine the base branch for this push
-          // This would require an additional API call to get the PR associated with this branch
-          const prForBranch = await getPullRequestForBranch(client, github.context.ref)
-          if (prForBranch) {
-            base = prForBranch.base.sha
-            head = github.context.payload.after
-          } else {
-            // Fall back to default behavior if no PR found
-            base = github.context.payload.before
-            head = github.context.payload.after
-          }
-        } else {
-          // Default behavior
-          base = github.context.payload.before
-          head = github.context.payload.after
-        }
-        prNumber =
-          prNumber ?? (await getPrNumberAssociatedWithCommit(client, sha))
-        break
       case 'workflow_dispatch':
+        const shaResult = await determineShasForPushOrDispatch(
+          event,
+          client,
+          sha,
+          compareWithBaseBranch
+        )
+        base = shaResult.base
+        head = shaResult.head
+        break
       case 'schedule':
         prNumber =
           prNumber ?? (await getPrNumberAssociatedWithCommit(client, sha))
@@ -202,6 +191,16 @@ export async function action(): Promise<void> {
   }
 }
 
+/**
+ * Finds an open pull request associated with the given branch reference.
+ *
+ * This function searches for an open PR where the head branch matches the provided branch reference.
+ * It's used to determine the base branch for comparison when analyzing code coverage changes.
+ *
+ * @param client - GitHub API client
+ * @param branchRef - Branch reference (e.g., 'refs/heads/feature-branch')
+ * @returns The pull request object if found, null otherwise
+ */
 async function getPullRequestForBranch(
   client: InstanceType<typeof GitHub>,
   branchRef: string
@@ -215,6 +214,89 @@ async function getPullRequestForBranch(
   })
 
   return response.data.length > 0 ? response.data[0] : null
+}
+
+/**
+ * Determines the base SHA for workflow_dispatch events by finding the parent commit
+ * of the current SHA.
+ *
+ * @param client - GitHub API client
+ * @param sha - Current commit SHA
+ * @returns The parent commit SHA or the current SHA if parent cannot be determined
+ */
+async function determineBaseShaForWorkflowDispatch(
+  client: InstanceType<typeof GitHub>,
+  sha: string
+): Promise<string> {
+  try {
+    // Try to get the parent commit
+    const commitResponse = await client.rest.repos.getCommit({
+      owner: github.context.repo.owner,
+      repo: github.context.repo.repo,
+      ref: sha
+    })
+
+    if (commitResponse.data.parents && commitResponse.data.parents.length > 0) {
+      return commitResponse.data.parents[0].sha
+    }
+  } catch (error) {
+    core.warning(`Failed to determine parent commit: ${error}`)
+  }
+
+  // Return the current SHA if we can't determine parent
+  return sha
+}
+
+/**
+ * Determines the base and head SHAs for push and workflow_dispatch events.
+ * Ensures consistent handling between these event types.
+ *
+ * For push events:
+ * - If compareWithBaseBranch is true and a PR exists, uses PR's base and head
+ * - Otherwise uses before/after from the push payload
+ *
+ * For workflow_dispatch events:
+ * - If compareWithBaseBranch is true and a PR exists, uses PR's base and current SHA
+ * - Otherwise uses parent commit as base and current SHA as head
+ *
+ * @param event - GitHub event name ('push', 'workflow_dispatch', etc.)
+ * @param client - GitHub API client
+ * @param sha - Current commit SHA
+ * @param compareWithBaseBranch - Whether to compare with base branch or previous commit
+ * @returns Object containing base and head SHAs for comparison
+ */
+async function determineShasForPushOrDispatch(
+  event: string,
+  client: InstanceType<typeof GitHub>,
+  sha: string,
+  compareWithBaseBranch: boolean
+): Promise<{ base: string; head: string }> {
+  // Default values
+  let base = sha
+  let head = sha
+
+  if (compareWithBaseBranch) {
+    // Try to find associated PR
+    const prForBranch = await getPullRequestForBranch(client, github.context.ref)
+    if (prForBranch) {
+      base = prForBranch.base.sha
+      head = event === 'push' ? github.context.payload.after : sha
+      return { base, head }
+    }
+  }
+
+  // If no PR found or compareWithBaseBranch is false
+  if (event === 'push') {
+    // Use standard behavior for push
+    base = github.context.payload.before
+    head = github.context.payload.after
+  } else if (event === 'workflow_dispatch') {
+    // For workflow_dispatch, get parent commit
+    base = await determineBaseShaForWorkflowDispatch(client, sha)
+    head = sha
+  }
+
+  return { base, head }
 }
 
 async function getJsonReports(
