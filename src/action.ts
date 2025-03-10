@@ -62,6 +62,8 @@ export async function action(): Promise<void> {
       core.setFailed(`'comment-type' ${commentType} is invalid`)
     }
 
+    const compareWithBaseBranch = parseBooleans(core.getInput('compare-with-base-branch'))
+
     let prNumber: number | undefined =
       Number(core.getInput('pr-number')) || undefined
 
@@ -78,8 +80,23 @@ export async function action(): Promise<void> {
         prNumber = prNumber ?? github.context.payload.pull_request?.number
         break
       case 'push':
-        base = github.context.payload.before
-        head = github.context.payload.after
+        if (compareWithBaseBranch) {
+          // Need to determine the base branch for this push
+          // This would require an additional API call to get the PR associated with this branch
+          const prForBranch = await getPullRequestForBranch(client, github.context.ref)
+          if (prForBranch) {
+            base = prForBranch.base.sha
+            head = github.context.payload.after
+          } else {
+            // Fall back to default behavior if no PR found
+            base = github.context.payload.before
+            head = github.context.payload.after
+          }
+        } else {
+          // Default behavior
+          base = github.context.payload.before
+          head = github.context.payload.after
+        }
         prNumber =
           prNumber ?? (await getPrNumberAssociatedWithCommit(client, sha))
         break
@@ -183,6 +200,21 @@ export async function action(): Promise<void> {
       }
     }
   }
+}
+
+async function getPullRequestForBranch(
+  client: InstanceType<typeof GitHub>,
+  branchRef: string
+): Promise<any | null> {
+  const branchName = branchRef.replace('refs/heads/', '')
+  const response = await client.rest.pulls.list({
+    owner: github.context.repo.owner,
+    repo: github.context.repo.repo,
+    state: 'open',
+    head: `${github.context.repo.owner}:${branchName}`
+  })
+
+  return response.data.length > 0 ? response.data[0] : null
 }
 
 async function getJsonReports(
