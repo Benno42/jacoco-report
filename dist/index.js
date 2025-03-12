@@ -98,6 +98,8 @@ async function action() {
                 break;
             case 'push':
             case 'workflow_dispatch':
+                prNumber =
+                    prNumber ?? (await getPrNumberAssociatedWithCommit(client, sha));
                 const shaResult = await determineShasForPushOrDispatch(event, client, sha, compareWithBaseBranch);
                 base = shaResult.base;
                 head = shaResult.head;

@@ -86,6 +86,8 @@ export async function action(): Promise<void> {
         break
       case 'push':
       case 'workflow_dispatch':
+        prNumber =
+          prNumber ?? (await getPrNumberAssociatedWithCommit(client, sha))
         const shaResult = await determineShasForPushOrDispatch(
           event,
           client,
